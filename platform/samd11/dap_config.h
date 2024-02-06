@@ -18,8 +18,8 @@
 #define DAP_CONFIG_JTAG_DEV_COUNT      8
 
 // DAP_CONFIG_PRODUCT_STR must contain "CMSIS-DAP" to be compatible with the standard
-#define DAP_CONFIG_VENDOR_STR          "Alex Taradov"
-#define DAP_CONFIG_PRODUCT_STR         "Generic CMSIS-DAP Adapter"
+#define DAP_CONFIG_VENDOR_STR          "Arduino"
+#define DAP_CONFIG_PRODUCT_STR         "Nano Matter CMSIS-DAP Adapter"
 #define DAP_CONFIG_SER_NUM_STR         usb_serial_number
 #define DAP_CONFIG_CMSIS_DAP_VER_STR   "2.0.0"
 
@@ -34,7 +34,7 @@
 
 // A threshold for switching to fast clock (no added delays)
 // This is the frequency produced by dap_clock_test(1) on the SWCLK pin
-#define DAP_CONFIG_FAST_CLOCK          2400000 // Hz
+#define DAP_CONFIG_FAST_CLOCK          500000 // Hz
 
 /*- Prototypes --------------------------------------------------------------*/
 extern char usb_serial_number[16];
@@ -82,7 +82,7 @@ static inline void DAP_CONFIG_nTRST_write(int value)
 //-----------------------------------------------------------------------------
 static inline void DAP_CONFIG_nRESET_write(int value)
 {
-  HAL_GPIO_nRESET_write(value);
+  HAL_GPIO_nRESET_write(!!!value);
 }
 
 //-----------------------------------------------------------------------------
@@ -126,7 +126,7 @@ static inline int DAP_CONFIG_nTRST_read(void)
 //-----------------------------------------------------------------------------
 static inline int DAP_CONFIG_nRESET_read(void)
 {
-  return HAL_GPIO_nRESET_read();
+  return !HAL_GPIO_nRESET_read();
 }
 
 //-----------------------------------------------------------------------------
@@ -187,7 +187,7 @@ static inline void DAP_CONFIG_CONNECT_SWD(void)
   HAL_GPIO_SWCLK_TCK_set();
 
   HAL_GPIO_nRESET_out();
-  HAL_GPIO_nRESET_set();
+  HAL_GPIO_nRESET_clr();
 
 #ifdef DAP_CONFIG_ENABLE_JTAG
   HAL_GPIO_TDO_in();
