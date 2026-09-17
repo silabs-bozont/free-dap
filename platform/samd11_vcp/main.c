@@ -43,11 +43,6 @@
 /*- Definitions -------------------------------------------------------------*/
 #define USB_BUFFER_SIZE        64
 #define UART_WAIT_TIMEOUT      10 // ms
-#define STATUS_TIMEOUT         250 // ms
-
-HAL_GPIO_PIN(VCP_STATUS,       A, 10);
-HAL_GPIO_PIN(DAP_STATUS,       A, 11);
-HAL_GPIO_PIN(OUTPUT_EN,       A, 7);
 
 /*- Variables ---------------------------------------------------------------*/
 static alignas(4) uint8_t app_request_buffer[DAP_CONFIG_PACKET_SIZE];
@@ -61,10 +56,6 @@ static bool app_send_buffer_free = true;
 static bool app_send_zlp = false;
 static uint64_t app_system_time = 0;
 static uint64_t app_uart_timeout = 0;
-static uint64_t app_status_timeout;
-static bool app_dap_event = false;
-static bool app_vcp_event = false;
-static bool app_vcp_open = false;
 
 /*- Implementations ---------------------------------------------------------*/
 
@@ -174,10 +165,7 @@ void usb_cdc_line_coding_updated(usb_cdc_line_coding_t *line_coding)
 //-----------------------------------------------------------------------------
 void usb_cdc_control_line_state_update(int line_state)
 {
-  bool status = line_state & USB_CDC_CTRL_SIGNAL_DTE_PRESENT;
-
-  // TODO: actually open/close the port?
-  app_vcp_open = status;
+  (void)line_state;
 }
 
 //-----------------------------------------------------------------------------
@@ -190,7 +178,6 @@ static void tx_task(void)
 
     app_recv_buffer_ptr++;
     app_recv_buffer_size--;
-    app_vcp_event = true;
 
     if (0 == app_recv_buffer_size)
       usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
@@ -209,7 +196,6 @@ static void rx_task(void)
   {
     app_uart_timeout = get_system_time() + UART_WAIT_TIMEOUT;
     app_send_buffer[app_send_buffer_ptr++] = byte;
-    app_vcp_event = true;
 
     if (USB_BUFFER_SIZE == app_send_buffer_ptr)
     {
@@ -246,7 +232,6 @@ void usb_hid_send_callback(void)
 //-----------------------------------------------------------------------------
 void usb_hid_recv_callback(int size)
 {
-  app_dap_event = true;
   dap_process_request(app_request_buffer, app_response_buffer);
   usb_hid_send(app_response_buffer, sizeof(app_response_buffer));
   (void)size;
@@ -264,28 +249,6 @@ bool usb_class_handle_request(usb_request_t *request)
 }
 
 //-----------------------------------------------------------------------------
-static void status_timer_task(void)
-{
-  if (get_system_time() < app_status_timeout)
-    return;
-
-  app_status_timeout = get_system_time() + STATUS_TIMEOUT;
-
-  if (app_dap_event)
-    HAL_GPIO_DAP_STATUS_toggle();
-  else
-    HAL_GPIO_DAP_STATUS_set();
-
-  if (app_vcp_event)
-    HAL_GPIO_VCP_STATUS_toggle();
-  else
-    HAL_GPIO_VCP_STATUS_write(app_vcp_open);
-
-  app_dap_event = false;
-  app_vcp_event = false;
-}
-
-//-----------------------------------------------------------------------------
 int main(void)
 {
   sys_init();
@@ -295,17 +258,6 @@ int main(void)
   usb_cdc_init();
   usb_hid_init();
 
-  app_status_timeout = STATUS_TIMEOUT;
-
-  HAL_GPIO_VCP_STATUS_out();
-  HAL_GPIO_VCP_STATUS_clr();
-
-  HAL_GPIO_DAP_STATUS_out();
-  HAL_GPIO_DAP_STATUS_set();
-
-  HAL_GPIO_OUTPUT_EN_out();
-  HAL_GPIO_OUTPUT_EN_set();
-
   while (1)
   {
     sys_time_task();
@@ -313,7 +265,6 @@ int main(void)
     tx_task();
     rx_task();
     uart_timer_task();
-    status_timer_task();
   }
 
   return 0;

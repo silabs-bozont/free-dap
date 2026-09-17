@@ -50,7 +50,7 @@ HAL_GPIO_PIN(nRESET,       A, 4)
 // Set the value to NULL if you want to disable a string
 // DAP_CONFIG_PRODUCT_STR must contain "CMSIS-DAP" to be compatible with the standard
 #define DAP_CONFIG_VENDOR_STR          "Arduino"
-#define DAP_CONFIG_PRODUCT_STR         "Nano Matter CMSIS-DAP Adapter"
+#define DAP_CONFIG_PRODUCT_STR         "Si917 CMSIS-DAP Adapter"
 #define DAP_CONFIG_SER_NUM_STR         usb_serial_number
 #define DAP_CONFIG_FW_VER_STR          "v1.0"
 #define DAP_CONFIG_DEVICE_VENDOR_STR   NULL
@@ -95,9 +95,22 @@ static inline void DAP_CONFIG_nTRST_write(int value)
 }
 
 //-----------------------------------------------------------------------------
+// PA04 is resistor-bridged to the Si917 RESET_N / POC_IN network because the
+// inverting MOSFET is not fitted.  Pulling that net low powers the Si917 down
+// permanently: neither releasing to high-Z, driving it high, nor powering up
+// with it held low brings the device back, and recovery needs the SJ1 ISP
+// jumper.  Until the reset circuit is repaired the line is left alone.
 static inline void DAP_CONFIG_nRESET_write(int value)
 {
-  HAL_GPIO_nRESET_write(!!!value);
+  /*
+   * PA04 is resistor-bridged to the Si917 RESET_N / POC_IN pin because the
+   * board's MOSFET was removed, so this line gates the target's power rather
+   * than resetting it: driving it low powers the Si917 down and driving it
+   * high boots it, which takes a couple of seconds.  Both edges have to be
+   * driven; letting the pin float leaves the target off.
+   */
+  HAL_GPIO_nRESET_write(value);
+  HAL_GPIO_nRESET_out();
 }
 
 //-----------------------------------------------------------------------------
@@ -133,7 +146,7 @@ static inline int DAP_CONFIG_nTRST_read(void)
 //-----------------------------------------------------------------------------
 static inline int DAP_CONFIG_nRESET_read(void)
 {
-  return !HAL_GPIO_nRESET_read();
+  return HAL_GPIO_nRESET_read();
 }
 
 //-----------------------------------------------------------------------------
@@ -165,7 +178,10 @@ static inline void DAP_CONFIG_SETUP(void)
 {
   HAL_GPIO_SWCLK_TCK_in();
   HAL_GPIO_SWDIO_TMS_in();
-  HAL_GPIO_nRESET_in();
+
+  /* Release the target so it boots whenever the board is plugged in. */
+  HAL_GPIO_nRESET_set();
+  HAL_GPIO_nRESET_out();
 
   HAL_GPIO_SWDIO_TMS_pullup();
 }
@@ -175,7 +191,7 @@ static inline void DAP_CONFIG_DISCONNECT(void)
 {
   HAL_GPIO_SWCLK_TCK_in();
   HAL_GPIO_SWDIO_TMS_in();
-  HAL_GPIO_nRESET_in();
+  /* Leave nRESET as the debugger left it, so a running target keeps running. */
 }
 
 //-----------------------------------------------------------------------------
@@ -187,8 +203,7 @@ static inline void DAP_CONFIG_CONNECT_SWD(void)
   HAL_GPIO_SWCLK_TCK_out();
   HAL_GPIO_SWCLK_TCK_set();
 
-  HAL_GPIO_nRESET_out();
-  HAL_GPIO_nRESET_clr();
+  /* Leave the target powered; only an explicit reset request may drive it. */
 }
 
 //-----------------------------------------------------------------------------
@@ -199,9 +214,6 @@ static inline void DAP_CONFIG_CONNECT_JTAG(void)
 
   HAL_GPIO_SWCLK_TCK_out();
   HAL_GPIO_SWCLK_TCK_set();
-
-  HAL_GPIO_nRESET_out();
-  HAL_GPIO_nRESET_clr();
 }
 
 //-----------------------------------------------------------------------------

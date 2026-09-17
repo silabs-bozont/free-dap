@@ -43,7 +43,7 @@ const alignas(4) usb_device_descriptor_t usb_device_descriptor =
   .bDeviceProtocol    = USB_DEVICE_PROTOCOL_INTERFACE_ASSOCIATION,
   .bMaxPacketSize0    = 64,
   .idVendor           = 0x2341,
-  .idProduct          = 0x0072,
+  .idProduct          = 0x0420,
   .bcdDevice          = 0x0101,
   .iManufacturer      = USB_STR_MANUFACTURER,
   .iProduct           = USB_STR_PRODUCT,
@@ -110,7 +110,7 @@ const alignas(4) usb_configuration_hierarchy_t usb_configuration_hierarchy =
   },
 
   .iad =
-  { 
+  {
     .bLength             = sizeof(usb_interface_association_descriptor_t),
     .bDescriptorType     = USB_INTERFACE_ASSOCIATION_DESCRIPTOR,
     .bFirstInterface     = 1,
@@ -242,9 +242,8 @@ char usb_serial_number[16];
 const char *usb_strings[] =
 {
   [USB_STR_MANUFACTURER]  = "Arduino",
-  [USB_STR_PRODUCT]       = "Nano Matter CMSIS-DAP",
+  [USB_STR_PRODUCT]       = "Si917 CMSIS-DAP",
   [USB_STR_COM_PORT]      = "Virtual COM-Port",
   [USB_STR_CMSIS_DAP]     = "CMSIS-DAP Adapter",
   [USB_STR_SERIAL_NUMBER] = usb_serial_number,
 };
-
