@@ -152,15 +152,24 @@ void usb_cdc_recv_callback(int size)
 {
   app_recv_buffer_ptr = 0;
   app_recv_buffer_size = size;
+
+  // A full-size host write may be terminated by a zero-length packet
+  if (0 == size)
+    usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
 }
 
 //-----------------------------------------------------------------------------
 void usb_configuration_callback(int config)
 {
+  app_recv_buffer_size = 0;
+  app_recv_buffer_ptr = 0;
+  app_send_buffer_ptr = 0;
+  app_send_buffer_free = true;
+  app_send_zlp = false;
+  app_uart_timeout = 0;
+
   usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
   usb_hid_recv(app_request_buffer, sizeof(app_request_buffer));
-
-  app_send_buffer_free = true;
 
   (void)config;
 }
@@ -222,6 +231,10 @@ static void rx_task(void)
 //-----------------------------------------------------------------------------
 static void uart_timer_task(void)
 {
+  // Keep the active USB descriptor intact until its transfer completes
+  if (!app_send_buffer_free)
+    return;
+
   if (app_uart_timeout && get_system_time() > app_uart_timeout)
   {
     if (app_send_zlp || app_send_buffer_ptr)
@@ -259,7 +272,7 @@ bool usb_class_handle_request(usb_request_t *request)
     return true;
   else if (usb_hid_handle_request(request))
     return true;
-  else 
+  else
     return false;
 }
 
@@ -318,4 +331,3 @@ int main(void)
 
   return 0;
 }
-
