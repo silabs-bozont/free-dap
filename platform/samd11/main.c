@@ -18,7 +18,6 @@
 /*- Definitions -------------------------------------------------------------*/
 #define USB_BUFFER_SIZE        64
 #define UART_WAIT_TIMEOUT      10 // ms
-#define STATUS_TIMEOUT         250 // ms
 
 /*- Variables ---------------------------------------------------------------*/
 static alignas(4) uint8_t app_req_buf_hid[DAP_CONFIG_PACKET_SIZE];
@@ -29,8 +28,6 @@ static int app_req_buf_hid_size = 0;
 static int app_req_buf_bulk_size = 0;
 static bool app_resp_free = true;
 static uint64_t app_system_time = 0;
-static uint64_t app_status_timeout = 0;
-static bool app_dap_event = false;
 
 #ifdef HAL_CONFIG_ENABLE_VCP
 static alignas(4) uint8_t app_recv_buffer[USB_BUFFER_SIZE];
@@ -42,7 +39,6 @@ static bool app_send_buffer_free = true;
 static bool app_send_zlp = false;
 static uint64_t app_uart_timeout = 0;
 static uint64_t app_break_timeout = 0;
-static bool app_vcp_event = false;
 static bool app_vcp_open = false;
 #endif
 
@@ -125,7 +121,6 @@ static void tx_task(void)
 
     app_recv_buffer_ptr++;
     app_recv_buffer_size--;
-    app_vcp_event = true;
 
     if (0 == app_recv_buffer_size)
       usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
@@ -156,7 +151,6 @@ static void rx_task(void)
     int state = (byte >> 8) & 0xff;
 
     app_uart_timeout = app_system_time + UART_WAIT_TIMEOUT;
-    app_vcp_event = true;
 
     if (state)
     {
@@ -326,7 +320,6 @@ static void dap_task(void)
     usb_hid_send(app_resp_buf, sizeof(app_resp_buf));
 
   app_resp_free = false;
-  app_dap_event = true;
 }
 
 //-----------------------------------------------------------------------------
@@ -358,31 +351,6 @@ void usb_configuration_callback(int config)
 }
 
 //-----------------------------------------------------------------------------
-static void status_timer_task(void)
-{
-  if (app_system_time < app_status_timeout)
-    return;
-
-  app_status_timeout = app_system_time + STATUS_TIMEOUT;
-
-  if (app_dap_event)
-    HAL_GPIO_DAP_STATUS_toggle();
-  else
-    HAL_GPIO_DAP_STATUS_set();
-
-  app_dap_event = false;
-
-#ifdef HAL_CONFIG_ENABLE_VCP
-  if (app_vcp_event)
-    HAL_GPIO_VCP_STATUS_toggle();
-  else
-    HAL_GPIO_VCP_STATUS_write(app_vcp_open);
-
-  app_vcp_event = false;
-#endif
-}
-
-//-----------------------------------------------------------------------------
 int main(void)
 {
   sys_init();
@@ -395,15 +363,6 @@ int main(void)
   usb_hid_init();
   serial_number_init();
 
-  app_status_timeout = STATUS_TIMEOUT;
-
-#ifdef HAL_CONFIG_ENABLE_VCP
-  HAL_GPIO_VCP_STATUS_out();
-  HAL_GPIO_VCP_STATUS_clr();
-#endif
-
-  HAL_GPIO_DAP_STATUS_out();
-  HAL_GPIO_DAP_STATUS_set();
 
   HAL_GPIO_BOOT_ENTER_in();
   HAL_GPIO_BOOT_ENTER_pullup();
@@ -411,7 +370,6 @@ int main(void)
   while (1)
   {
     sys_time_task();
-    status_timer_task();
     usb_task();
     dap_task();
 

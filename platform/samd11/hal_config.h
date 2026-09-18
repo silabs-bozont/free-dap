@@ -37,8 +37,6 @@
   HAL_GPIO_PIN(SWDIO_TMS,          A, 2)
   HAL_GPIO_PIN(nRESET,             A, 4)
 
-  HAL_GPIO_PIN(VCP_STATUS,         A, 10);
-  HAL_GPIO_PIN(DAP_STATUS,         A, 7);
   HAL_GPIO_PIN(BOOT_ENTER,         A, 31);
 
   HAL_GPIO_PIN(UART_TX,            A, 8);
