@@ -188,6 +188,10 @@ static void break_task(void)
 //-----------------------------------------------------------------------------
 static void uart_timer_task(void)
 {
+  // Keep the active USB descriptor intact until its transfer completes
+  if (!app_send_buffer_free)
+    return;
+
   if (app_uart_timeout && app_system_time > app_uart_timeout)
   {
     if (app_send_zlp || app_send_buffer_ptr)
@@ -250,6 +254,10 @@ void usb_cdc_recv_callback(int size)
 {
   app_recv_buffer_ptr = 0;
   app_recv_buffer_size = size;
+
+  // A full-size host write may be terminated by a zero-length packet
+  if (0 == size)
+    usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
 }
 #endif // HAL_CONFIG_ENABLE_VCP
 
@@ -335,10 +343,15 @@ void usb_configuration_callback(int config)
   usb_recv(USB_BULK_EP_RECV, app_req_buf_bulk, sizeof(app_req_buf_bulk));
 
 #ifdef HAL_CONFIG_ENABLE_VCP
-  usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
-
+  app_recv_buffer_size = 0;
+  app_recv_buffer_ptr = 0;
   app_send_buffer_free = true;
   app_send_buffer_ptr = 0;
+  app_send_zlp = false;
+  app_uart_timeout = 0;
+  app_break_timeout = 0;
+
+  usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
 #endif
 
   (void)config;
@@ -415,4 +428,3 @@ int main(void)
 
   return 0;
 }
-

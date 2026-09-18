@@ -15,7 +15,7 @@
 #ifdef HAL_CONFIG_ENABLE_VCP
 
 /*- Definitions -------------------------------------------------------------*/
-#define UART_BUF_SIZE            256
+#define UART_BUF_SIZE            512
 
 /*- Types ------------------------------------------------------------------*/
 typedef struct
@@ -220,5 +220,4 @@ void UART_SERCOM_IRQ_HANDLER(void)
     }
   }
 }
-
 #endif // HAL_CONFIG_ENABLE_VCP
