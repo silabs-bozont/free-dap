@@ -38,7 +38,7 @@
 #include "usb_cdc.h"
 
 /*- Definitions -------------------------------------------------------------*/
-#define UART_BUF_SIZE            256
+#define UART_BUF_SIZE            512
 
 HAL_GPIO_PIN(UART_TX,            A, 8);
 HAL_GPIO_PIN(UART_RX,            A, 5);
@@ -223,4 +223,3 @@ void UART_SERCOM_IRQ_HANDLER(void)
     }
   }
 }
-
