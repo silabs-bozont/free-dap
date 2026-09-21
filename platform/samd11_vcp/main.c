@@ -47,8 +47,17 @@
 HAL_GPIO_PIN(OUTPUT_EN,       A, 7);
 
 /*- Variables ---------------------------------------------------------------*/
-static alignas(4) uint8_t app_request_buffer[DAP_CONFIG_PACKET_SIZE];
-static alignas(4) uint8_t app_response_buffer[DAP_CONFIG_PACKET_SIZE];
+static alignas(4) uint8_t app_request_buffer[DAP_CONFIG_PACKET_COUNT][DAP_CONFIG_PACKET_SIZE];
+static bool app_request_valid[DAP_CONFIG_PACKET_COUNT];
+static bool app_request_pending;
+static int app_request_wr_ptr;
+static int app_request_rd_ptr;
+
+static alignas(4) uint8_t app_response_buffer[DAP_CONFIG_PACKET_COUNT][DAP_CONFIG_PACKET_SIZE];
+static bool app_response_valid[DAP_CONFIG_PACKET_COUNT];
+static bool app_response_pending;
+static int app_response_wr_ptr;
+static int app_response_rd_ptr;
 static alignas(4) uint8_t app_recv_buffer[USB_BUFFER_SIZE];
 static alignas(4) uint8_t app_send_buffer[USB_BUFFER_SIZE];
 static int app_recv_buffer_size = 0;
@@ -58,6 +67,10 @@ static bool app_send_buffer_free = true;
 static bool app_send_zlp = false;
 static uint64_t app_system_time = 0;
 static uint64_t app_uart_timeout = 0;
+
+/*- Prototypes --------------------------------------------------------------*/
+static void receive_request(void);
+static void send_response(void);
 
 /*- Implementations ---------------------------------------------------------*/
 
@@ -154,6 +167,20 @@ void usb_cdc_recv_callback(int size)
 //-----------------------------------------------------------------------------
 void usb_configuration_callback(int config)
 {
+  app_request_pending = false;
+  app_request_wr_ptr = 0;
+  app_request_rd_ptr = 0;
+
+  app_response_pending = false;
+  app_response_wr_ptr = 0;
+  app_response_rd_ptr = 0;
+
+  for (int i = 0; i < DAP_CONFIG_PACKET_COUNT; i++)
+  {
+    app_request_valid[i] = false;
+    app_response_valid[i] = false;
+  }
+
   app_recv_buffer_size = 0;
   app_recv_buffer_ptr = 0;
   app_send_buffer_ptr = 0;
@@ -162,9 +189,19 @@ void usb_configuration_callback(int config)
   app_uart_timeout = 0;
 
   usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
-  usb_hid_recv(app_request_buffer, sizeof(app_request_buffer));
+  receive_request();
 
   (void)config;
+}
+
+//-----------------------------------------------------------------------------
+static void receive_request(void)
+{
+  if (app_request_pending || app_request_valid[app_request_wr_ptr])
+    return;
+
+  app_request_pending = true;
+  usb_hid_recv(app_request_buffer[app_request_wr_ptr], DAP_CONFIG_PACKET_SIZE);
 }
 
 //-----------------------------------------------------------------------------
@@ -241,15 +278,55 @@ void uart_serial_state_update(int state)
 //-----------------------------------------------------------------------------
 void usb_hid_send_callback(void)
 {
-  usb_hid_recv(app_request_buffer, sizeof(app_request_buffer));
+  app_response_pending = false;
+  app_response_valid[app_response_rd_ptr] = false;
+  app_response_rd_ptr = (app_response_rd_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
+
+  send_response();
 }
 
 //-----------------------------------------------------------------------------
 void usb_hid_recv_callback(int size)
 {
-  dap_process_request(app_request_buffer, app_response_buffer);
-  usb_hid_send(app_response_buffer, sizeof(app_response_buffer));
+  if (dap_filter_request(app_request_buffer[app_request_wr_ptr]))
+  {
+    app_request_valid[app_request_wr_ptr] = true;
+    app_request_wr_ptr = (app_request_wr_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
+  }
+
+  app_request_pending = false;
+  receive_request();
+
   (void)size;
+}
+
+//-----------------------------------------------------------------------------
+static void send_response(void)
+{
+  if (app_response_pending || !app_response_valid[app_response_rd_ptr])
+    return;
+
+  app_response_pending = true;
+  usb_hid_send(app_response_buffer[app_response_rd_ptr], DAP_CONFIG_PACKET_SIZE);
+}
+
+//-----------------------------------------------------------------------------
+static void dap_task(void)
+{
+  if (!app_request_valid[app_request_rd_ptr])
+    return;
+
+  dap_process_request(app_request_buffer[app_request_rd_ptr],
+      app_response_buffer[app_response_wr_ptr]);
+
+  app_response_valid[app_response_wr_ptr] = true;
+  app_response_wr_ptr = (app_response_wr_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
+
+  send_response();
+
+  app_request_valid[app_request_rd_ptr] = false;
+  app_request_rd_ptr = (app_request_rd_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
+  receive_request();
 }
 
 //-----------------------------------------------------------------------------
@@ -280,6 +357,7 @@ int main(void)
   {
     sys_time_task();
     usb_task();
+    dap_task();
     tx_task();
     rx_task();
     uart_timer_task();
