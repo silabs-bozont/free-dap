@@ -15,19 +15,27 @@
 #ifdef HAL_CONFIG_ENABLE_VCP
 
 /*- Definitions -------------------------------------------------------------*/
-#define UART_BUF_SIZE            512
+#define UART_RX_BUF_SIZE         512
+#define UART_TX_BUF_SIZE         512
 
 /*- Types ------------------------------------------------------------------*/
 typedef struct
 {
   int       wr;
   int       rd;
-  uint16_t  data[UART_BUF_SIZE];
-} fifo_buffer_t;
+  uint16_t  data[UART_RX_BUF_SIZE];
+} rx_fifo_buffer_t;
+
+typedef struct
+{
+  int       wr;
+  int       rd;
+  uint8_t   data[UART_TX_BUF_SIZE];
+} tx_fifo_buffer_t;
 
 /*- Variables --------------------------------------------------------------*/
-static volatile fifo_buffer_t uart_rx_fifo;
-static volatile fifo_buffer_t uart_tx_fifo;
+static volatile rx_fifo_buffer_t uart_rx_fifo;
+static volatile tx_fifo_buffer_t uart_tx_fifo;
 static volatile bool uart_fifo_overflow = false;
 
 /*- Implementations ---------------------------------------------------------*/
@@ -118,7 +126,7 @@ void uart_close(void)
 //-----------------------------------------------------------------------------
 bool uart_write_byte(int byte)
 {
-  int wr = (uart_tx_fifo.wr + 1) % UART_BUF_SIZE;
+  int wr = (uart_tx_fifo.wr + 1) % UART_TX_BUF_SIZE;
   bool res = false;
 
   NVIC_DisableIRQ(UART_SERCOM_IRQ_INDEX);
@@ -153,7 +161,7 @@ bool uart_read_byte(int *byte)
   else if (uart_rx_fifo.rd != uart_rx_fifo.wr)
   {
     *byte = uart_rx_fifo.data[uart_rx_fifo.rd];
-    uart_rx_fifo.rd = (uart_rx_fifo.rd + 1) % UART_BUF_SIZE;
+    uart_rx_fifo.rd = (uart_rx_fifo.rd + 1) % UART_RX_BUF_SIZE;
     res = true;
   }
 
@@ -180,7 +188,7 @@ void UART_SERCOM_IRQ_HANDLER(void)
   {
     int status = UART_SERCOM->USART.STATUS.reg;
     int byte = UART_SERCOM->USART.DATA.reg;
-    int wr = (uart_rx_fifo.wr + 1) % UART_BUF_SIZE;
+    int wr = (uart_rx_fifo.wr + 1) % UART_RX_BUF_SIZE;
     int state = 0;
 
     UART_SERCOM->USART.STATUS.reg = status;
@@ -216,7 +224,7 @@ void UART_SERCOM_IRQ_HANDLER(void)
     else
     {
       UART_SERCOM->USART.DATA.reg = uart_tx_fifo.data[uart_tx_fifo.rd];
-      uart_tx_fifo.rd = (uart_tx_fifo.rd + 1) % UART_BUF_SIZE;
+      uart_tx_fifo.rd = (uart_tx_fifo.rd + 1) % UART_TX_BUF_SIZE;
     }
   }
 }
