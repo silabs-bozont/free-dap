@@ -19,7 +19,7 @@
 
 // DAP_CONFIG_PRODUCT_STR must contain "CMSIS-DAP" to be compatible with the standard
 #define DAP_CONFIG_VENDOR_STR          "Arduino"
-#define DAP_CONFIG_PRODUCT_STR         "Nano Matter CMSIS-DAP Adapter"
+#define DAP_CONFIG_PRODUCT_STR         "Si917 CMSIS-DAP Adapter"
 #define DAP_CONFIG_SER_NUM_STR         usb_serial_number
 #define DAP_CONFIG_CMSIS_DAP_VER_STR   "2.0.0"
 
@@ -82,7 +82,9 @@ static inline void DAP_CONFIG_nTRST_write(int value)
 //-----------------------------------------------------------------------------
 static inline void DAP_CONFIG_nRESET_write(int value)
 {
-  HAL_GPIO_nRESET_write(!!!value);
+  /* PA04 directly drives the Si917 RESET_N / POC_IN power-control net. */
+  HAL_GPIO_nRESET_write(value);
+  HAL_GPIO_nRESET_out();
 }
 
 //-----------------------------------------------------------------------------
@@ -126,7 +128,7 @@ static inline int DAP_CONFIG_nTRST_read(void)
 //-----------------------------------------------------------------------------
 static inline int DAP_CONFIG_nRESET_read(void)
 {
-  return !HAL_GPIO_nRESET_read();
+  return HAL_GPIO_nRESET_read();
 }
 
 //-----------------------------------------------------------------------------
@@ -158,7 +160,12 @@ static inline void DAP_CONFIG_SETUP(void)
 {
   HAL_GPIO_SWCLK_TCK_in();
   HAL_GPIO_SWDIO_TMS_in();
-  HAL_GPIO_nRESET_in();
+
+  /* Keep the target powered whenever no explicit reset is in progress. */
+  HAL_GPIO_nRESET_set();
+  HAL_GPIO_nRESET_out();
+
+  HAL_GPIO_SWDIO_TMS_pullup();
 #ifdef DAP_CONFIG_ENABLE_JTAG
   HAL_GPIO_TDO_in();
   HAL_GPIO_TDI_in();
@@ -170,7 +177,7 @@ static inline void DAP_CONFIG_DISCONNECT(void)
 {
   HAL_GPIO_SWCLK_TCK_in();
   HAL_GPIO_SWDIO_TMS_in();
-  HAL_GPIO_nRESET_in();
+  /* Preserve the last reset level so a running target remains powered. */
 #ifdef DAP_CONFIG_ENABLE_JTAG
   HAL_GPIO_TDO_in();
   HAL_GPIO_TDI_in();
@@ -186,8 +193,7 @@ static inline void DAP_CONFIG_CONNECT_SWD(void)
   HAL_GPIO_SWCLK_TCK_out();
   HAL_GPIO_SWCLK_TCK_set();
 
-  HAL_GPIO_nRESET_out();
-  HAL_GPIO_nRESET_clr();
+  /* Connecting SWD must not disturb the target's power-control line. */
 
 #ifdef DAP_CONFIG_ENABLE_JTAG
   HAL_GPIO_TDO_in();
@@ -203,9 +209,6 @@ static inline void DAP_CONFIG_CONNECT_JTAG(void)
 
   HAL_GPIO_SWCLK_TCK_out();
   HAL_GPIO_SWCLK_TCK_set();
-
-  HAL_GPIO_nRESET_out();
-  HAL_GPIO_nRESET_set();
 
 #ifdef DAP_CONFIG_ENABLE_JTAG
   HAL_GPIO_TDO_in();

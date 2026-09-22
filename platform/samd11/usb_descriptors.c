@@ -23,7 +23,7 @@ const alignas(4) usb_device_descriptor_t usb_device_descriptor =
   .bMaxPacketSize0    = USB_CTRL_EP_SIZE,
   .idVendor           = 0x2341,
 #ifdef HAL_CONFIG_ENABLE_VCP
-  .idProduct          = 0x0072,
+  .idProduct          = 0x0420,
 #else
   .idProduct          = 0x9901,
 #endif
@@ -332,7 +332,7 @@ const char *usb_strings[] =
 {
   [USB_STR_MANUFACTURER]  = "Arduino",
 #ifdef HAL_CONFIG_ENABLE_VCP
-  [USB_STR_PRODUCT]       = "Nano Matter CMSIS-DAP",
+  [USB_STR_PRODUCT]       = "Si917 CMSIS-DAP",
 #else
   [USB_STR_PRODUCT]       = "Generic CMSIS-DAP Adapter",
 #endif
