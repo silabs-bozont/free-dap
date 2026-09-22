@@ -45,9 +45,9 @@ void uart_init(usb_cdc_line_coding_t *line_coding)
 {
   int chsize, form, pmode, sbmode, baud, fp;
 
+  /* UART idles high; avoid a low pulse on the target RX during VCP reopen. */
+  HAL_GPIO_UART_TX_set();
   HAL_GPIO_UART_TX_out();
-  HAL_GPIO_UART_TX_clr();
-  HAL_GPIO_UART_TX_pmuxen(UART_SERCOM_PMUX);
 
   HAL_GPIO_UART_RX_pullup();
   HAL_GPIO_UART_RX_pmuxen(UART_SERCOM_PMUX);
@@ -110,6 +110,7 @@ void uart_init(usb_cdc_line_coding_t *line_coding)
       SERCOM_USART_BAUD_FRACFP_BAUD(baud) | SERCOM_USART_BAUD_FRACFP_FP(fp);
 
   UART_SERCOM->USART.CTRLA.reg |= SERCOM_USART_CTRLA_ENABLE;
+  HAL_GPIO_UART_TX_pmuxen(UART_SERCOM_PMUX);
 
   UART_SERCOM->USART.INTENSET.reg = SERCOM_USART_INTENSET_RXC;
 
@@ -121,6 +122,11 @@ void uart_close(void)
 {
   UART_SERCOM->USART.CTRLA.reg = SERCOM_USART_CTRLA_SWRST;
   while (UART_SERCOM->USART.CTRLA.bit.SWRST);
+
+  /* Keep the target RX line at the UART idle level while the VCP is closed. */
+  HAL_GPIO_UART_TX_pmuxdis();
+  HAL_GPIO_UART_TX_set();
+  HAL_GPIO_UART_TX_out();
 }
 
 //-----------------------------------------------------------------------------
